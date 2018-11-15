@@ -8,7 +8,6 @@ extern crate serde_derive;
 use actix_web::{http, server, App, HttpRequest, HttpResponse, Json, State};
 use std::sync::Arc;
 use std::sync::Mutex;
-//use futures::{Future, Stream};
 
 struct AppState {
     state: Arc<Mutex<StateTotal>>,
@@ -44,8 +43,9 @@ fn main() {
         App::with_state(AppState{ state: state.clone()})
             .resource("/spent", |r| {
                 r.method(http::Method::POST).with(spent)
-        }) //TODO: correctly access state with get request
-            .resource("/spent-total", |r| r.method(http::Method::GET).with(spent_total))
+        })
+            .resource("/spent-total", |r| r.f(spent_total))
+
     }).bind("0.0.0.0:8001")
         .expect("Address already in use")
         .shutdown_timeout(5)
@@ -64,9 +64,12 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
         Ok(mut i) => {
             i.total += add;
             i.transactions.push(spent.amount.to_string());
-            //format i64 into $xx.xx
-
-            return HttpResponse::Ok().content_type("application/json").body(format_money(i.total.clone().to_string()));
+            match serde_json::to_string(&SpentResponse{
+                total: format_money(i.total.clone().to_string()),
+            }) {
+                Ok(s) => return HttpResponse::Ok().content_type("application/json").body(s),
+                Err(_) => HttpResponse::InternalServerError().into(),
+            }
         },
         Err(_) => return HttpResponse::InternalServerError().into(),
     }
@@ -74,8 +77,8 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
 
 
 //get
-fn spent_total(state: State<AppState>, _req: &HttpRequest<AppState>) -> HttpResponse {
-    match state.state.lock(){
+fn spent_total(req: &HttpRequest<AppState>) -> HttpResponse {
+    match req.state().state.lock(){
         Ok(mut i) => {
             return HttpResponse::Ok().content_type("application/json").body(i.total.clone().to_string());
         },
@@ -91,7 +94,8 @@ fn format_money(mut input: String) -> String {
     } else if input.len() < 3 {
         "$0.".to_string() + input.as_str()
     } else {
-        let mut output = "$".to_string() +input.as_str();
-        //TODO: add decimal in correct position
+        let mut output = "$".to_string() + input.as_str();
+        output.insert(input.len() - 1, '.');
+        return output
     }
 }
