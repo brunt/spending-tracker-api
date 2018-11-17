@@ -66,7 +66,7 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
             i.total += add;
             i.transactions.push(spent.amount.to_string());
             match serde_json::to_string(&SpentResponse {
-                total: format_money(i.total.clone().to_string()),
+                total: format_money(i.total.to_string()),
             }) {
                 Ok(s) => return HttpResponse::Ok().content_type("application/json").body(s),
                 Err(_) => HttpResponse::InternalServerError().into(),
@@ -79,7 +79,7 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
 fn spent_total(req: &HttpRequest<AppState>) -> HttpResponse {
     match req.state().state.lock() {
         Ok(i) => match serde_json::to_string(&SpentTotalResponse {
-            total: format_money(i.total.clone().to_string()),
+            total: format_money(i.total.to_string()),
             transactions: i.transactions.clone(),
         }) {
             Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
@@ -95,7 +95,7 @@ fn reset(req: &HttpRequest<AppState>) -> HttpResponse {
             i.total = 0;
             i.transactions = Vec::new();
             match serde_json::to_string(&SpentTotalResponse {
-                total: format_money(i.total.clone().to_string()),
+                total: format_money(i.total.to_string()),
                 transactions: i.transactions.clone(),
             }) {
                 Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
