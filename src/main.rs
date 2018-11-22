@@ -106,16 +106,29 @@ fn reset(req: &HttpRequest<AppState>) -> HttpResponse {
     }
 }
 
+//the chatbot client is doing input validation so I'm not bothered by not having any here
 fn format_money(input: String) -> String {
-    if input.len() < 1 {
-        input
-    } else if input.len() < 2 {
-        "$0.0".to_string() + input.as_str()
-    } else if input.len() < 3 {
-        "$0.".to_string() + input.as_str()
-    } else {
-        let mut output = "$".to_string() + input.as_str();
-        output.insert(input.len() - 1, '.');
-        return output;
+    match input.len() {
+        x if x < 1 => input,
+        x if x < 2 => "$0.0".to_string() + input.as_str(),
+        x if x < 3 => "$0.".to_string() + input.as_str(),
+        _ => {
+            let mut output = "$".to_string() + input.as_str();
+            output.insert(input.len() - 1, '.');
+            output
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_format_money() {
+        assert_eq!(format_money("".to_string()), "".to_string());
+        assert_eq!(format_money("1".to_string()), "$0.01".to_string());
+        assert_eq!(format_money("11".to_string()), "$0.11".to_string());
+        assert_eq!(format_money("111".to_string()), "$1.11".to_string());
+        assert_eq!(format_money("1111".to_string()), "$11.11".to_string());
     }
 }
