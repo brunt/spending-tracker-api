@@ -110,10 +110,10 @@ fn reset(req: &HttpRequest<AppState>) -> HttpResponse {
 fn format_money(input: String) -> String {
     match input.len() {
         x if x < 1 => input,
-        x if x < 2 => "$0.0".to_string() + input.as_str(),
-        x if x < 3 => "$0.".to_string() + input.as_str(),
+        x if x < 2 => format!("$0.0{}", input),
+        x if x < 3 => format!("$0.{}", input),
         _ => {
-            let mut output = "$".to_string() + input.as_str();
+            let mut output = format!("${}", input);
             output.insert(input.len() - 1, '.');
             output
         }
