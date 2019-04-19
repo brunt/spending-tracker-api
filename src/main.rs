@@ -7,10 +7,10 @@ extern crate serde_derive;
 
 use actix_web::{http, server, App, HttpRequest, HttpResponse, Json, State};
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 struct AppState {
-    state: Arc<Mutex<StateTotal>>,
+    state: Arc<RwLock<StateTotal>>,
 }
 
 struct StateTotal {
@@ -35,7 +35,7 @@ struct SpentTotalResponse {
 }
 
 fn main() {
-    let state = Arc::new(Mutex::new(StateTotal {
+    let state = Arc::new(RwLock::new(StateTotal {
         total: 0,
         transactions: Vec::new(),
     }));
@@ -61,7 +61,7 @@ fn main() {
 fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
     let spent = req.into_inner();
     let add = (spent.amount * 100.0).round() as i64;
-    match state.state.lock() {
+    match state.state.write() {
         Ok(mut i) => {
             i.total += add;
             i.transactions.push(spent.amount.to_string());
@@ -77,7 +77,7 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
 }
 
 fn spent_total(req: &HttpRequest<AppState>) -> HttpResponse {
-    match req.state().state.lock() {
+    match req.state().state.read() {
         Ok(i) => match serde_json::to_string(&SpentTotalResponse {
             total: format_money(i.total.to_string()),
             transactions: i.transactions.clone(),
@@ -90,7 +90,7 @@ fn spent_total(req: &HttpRequest<AppState>) -> HttpResponse {
 }
 
 fn reset(req: &HttpRequest<AppState>) -> HttpResponse {
-    match req.state().state.lock() {
+    match req.state().state.write() {
         Ok(mut i) => {
             i.total = 0;
             i.transactions = Vec::new();
