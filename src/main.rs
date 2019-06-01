@@ -9,18 +9,22 @@ use actix_web::{http, server, App, HttpRequest, HttpResponse, Json, State};
 use std::sync::Arc;
 use std::sync::RwLock;
 
+mod category;
+use category::Category;
+
 struct AppState {
     state: Arc<RwLock<StateTotal>>,
 }
 
 struct StateTotal {
     total: i64,
-    transactions: Vec<String>,
+    transactions: Vec<(String, Category)>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct SpentRequest {
     amount: f64,
+    category: Option<Category>,
 }
 
 #[derive(Serialize)]
@@ -31,7 +35,7 @@ struct SpentResponse {
 #[derive(Serialize)]
 struct SpentTotalResponse {
     total: String,
-    transactions: Vec<String>,
+    transactions: Vec<(String, Category)>,
 }
 
 fn main() {
@@ -45,10 +49,12 @@ fn main() {
     server::new(move || {
         App::with_state(AppState {
             state: state.clone(),
-        }).resource("/spent", |r| r.method(http::Method::POST).with(spent))
+        })
+        .resource("/spent", |r| r.method(http::Method::POST).with(spent))
         .resource("/spent-total", |r| r.f(spent_total))
         .resource("/reset", |r| r.f(reset))
-    }).bind("0.0.0.0:8001")
+    })
+    .bind("0.0.0.0:8001")
     .expect("Address already in use")
     .shutdown_timeout(5)
     .start();
@@ -64,7 +70,8 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
     match state.state.write() {
         Ok(mut i) => {
             i.total += add;
-            i.transactions.push(spent.amount.to_string());
+            i.transactions
+                .push((spent.amount.to_string(), spent.category.unwrap_or(Category::Other)));
             match serde_json::to_string(&SpentResponse {
                 total: format_money(i.total.to_string()),
             }) {
