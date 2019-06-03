@@ -64,7 +64,7 @@ fn main() {
         .configure(|app| {
             Cors::for_app(app)
                 .allowed_methods(vec!["GET"])
-                .allowed_origin("http://localhost:8001")
+                .allowed_origin("localhost")
                 .resource("/spent-total", |r| r.f(spent_total))
                 .resource("/reset", |r| r.f(reset))
                 .resource("/", |r| r.f(index))
