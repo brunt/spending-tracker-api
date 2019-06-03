@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Spending Breakdown</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" charset="UTF-8">
+    <script src="js/Chart.min.js"></script>
+    <style>
+        @media  (min-width: 768px) {
+            body {margin:5vh 5vw;padding:0;font-family:"Lucida Grande",Helvetica,Arial,Verdana,sans-serif;font-size:14px;}
+            canvas {max-width: 800px; max-height: 800px;}
+        }
+        @media (max-width: 767px) {
+            body {padding:0;font-family:"Lucida Grande",Helvetica,Arial,Verdana,sans-serif;font-size:8px;}
+            canvas {max-width: 600px; max-height: 600px;}
+
+        }
+    </style>
+</head>
+<body>
+<canvas id="spendingChart" width="400" height="400"></canvas>
+<script>
+    fetch("http://127.0.0.1:8001/spent-total").then((res) => {
+       if(res.ok){
+           return res.json();
+       }
+       throw new Error("network response was not ok");
+    }).then((total) => {
+        let displayData = [0,0,0,0,0,0];
+        total.transactions.forEach((entry) => {
+            switch (entry[1]) {
+                case 'Dining':
+                    displayData[0] += entry[0];
+                    break;
+                case 'Grocery':
+                    displayData[1] += entry[0];
+                    break;
+                case 'Merchandise':
+                    displayData[2] += entry[0];
+                    break;
+                case 'Entertainment':
+                    displayData[3] += entry[0];
+                    break;
+                case 'Travel':
+                    displayData[4] += entry[0];
+                    break;
+                case 'Other':
+                default:
+                    displayData[5] += entry[0];
+            }
+        });
+        let ctx = document.getElementById('spendingChart');
+        let spendingChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Dining', 'Grocery', 'Merchandise', 'Entertainment', 'Travel', 'Other'],
+                datasets: [{
+                    label: '$ spent',
+                    data: displayData,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(54, 162, 235, 0.2)',
+                        'rgba(255, 206, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)',
+                        'rgba(153, 102, 255, 0.2)',
+                        'rgba(255, 159, 64, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                    ],
+                    borderWidth: 3
+                }]
+            }
+    })});
+</script>
+</body>
+</html>

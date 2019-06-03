@@ -4,13 +4,23 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate rust_embed;
+extern crate mime_guess;
 
-use actix_web::{http, server, App, HttpRequest, HttpResponse, Json, State};
-use std::sync::Arc;
-use std::sync::RwLock;
+use actix_web::{
+    http, middleware::cors::Cors, server, App, HttpRequest, HttpResponse, Json, State,
+};
+
+use mime_guess::guess_mime_type;
+use std::sync::{Arc, RwLock};
 
 mod category;
 use category::Category;
+
+#[derive(RustEmbed)]
+#[folder = "public/"]
+struct Asset;
 
 struct AppState {
     state: Arc<RwLock<StateTotal>>,
@@ -48,11 +58,19 @@ fn main() {
 
     server::new(move || {
         App::with_state(AppState {
-            state: state.clone(),
+            state: state.to_owned(),
         })
         .resource("/spent", |r| r.method(http::Method::POST).with(spent))
-        .resource("/spent-total", |r| r.f(spent_total))
-        .resource("/reset", |r| r.f(reset))
+        .configure(|app| {
+            Cors::for_app(app)
+                .allowed_methods(vec!["GET"])
+                .allowed_origin("http://localhost:8001")
+                .resource("/spent-total", |r| r.f(spent_total))
+                .resource("/reset", |r| r.f(reset))
+                .resource("/", |r| r.f(index))
+                .resource("{_:.*}", |r| r.f(dist))
+                .register()
+        })
     })
     .bind("0.0.0.0:8001")
     .expect("Address already in use")
@@ -70,8 +88,10 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
     match state.state.write() {
         Ok(mut i) => {
             i.total += add;
-            i.transactions
-                .push((spent.amount.to_string(), spent.category.unwrap_or(Category::Other)));
+            i.transactions.push((
+                spent.amount.to_string(),
+                spent.category.unwrap_or(Category::Other),
+            ));
             match serde_json::to_string(&SpentResponse {
                 total: format_money(i.total.to_string()),
             }) {
@@ -125,6 +145,24 @@ fn format_money(input: String) -> String {
             output
         }
     }
+}
+
+fn handle_embedded_file(path: &str) -> HttpResponse {
+    match Asset::get(path) {
+        Some(content) => HttpResponse::Ok()
+            .content_type(guess_mime_type(path).to_string())
+            .body(content),
+        None => HttpResponse::NotFound().body("404 Not Found"),
+    }
+}
+
+fn index(_req: &HttpRequest<AppState>) -> HttpResponse {
+    handle_embedded_file("index.html")
+}
+
+fn dist(req: &HttpRequest<AppState>) -> HttpResponse {
+    let path = &req.path()["/".len()..];
+    handle_embedded_file(path)
 }
 
 #[cfg(test)]
