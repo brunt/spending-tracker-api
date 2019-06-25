@@ -1,4 +1,4 @@
-extern crate actix;
+extern crate actix_cors;
 extern crate actix_web;
 extern crate serde;
 extern crate serde_json;
@@ -8,11 +8,10 @@ extern crate serde_derive;
 extern crate rust_embed;
 extern crate mime_guess;
 
-use actix_web::{
-    http, middleware::cors::Cors, server, App, HttpRequest, HttpResponse, Json, State,
-};
-
+use actix_cors::Cors;
+use actix_web::{web, App, HttpResponse, HttpServer};
 use mime_guess::guess_mime_type;
+use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
 
 mod category;
@@ -48,41 +47,38 @@ struct SpentTotalResponse {
     transactions: Vec<(String, Category)>,
 }
 
-fn main() {
+fn main() -> std::io::Result<()> {
     let state = Arc::new(RwLock::new(StateTotal {
         total: 0,
         transactions: Vec::new(),
     }));
 
-    let sys = actix::System::new("api");
-
-    server::new(move || {
-        App::with_state(AppState {
-            state: state.to_owned(),
-        })
-        .resource("/spent", |r| r.method(http::Method::POST).with(spent))
-        .configure(|app| {
-            Cors::for_app(app)
-                .allowed_methods(vec!["GET"])
-                .allowed_origin("localhost")
-                .resource("/spent-total", |r| r.f(spent_total))
-                .resource("/reset", |r| r.f(reset))
-                .resource("/", |r| r.f(index))
-                .resource("{_:.*}", |r| r.f(dist))
-                .register()
-        })
+    HttpServer::new(move || {
+        App::new()
+            .data(AppState {
+                state: state.to_owned(),
+            })
+            .wrap(
+                Cors::new()
+                    .allowed_origin("localhost")
+                    .allowed_methods(vec!["GET", "POST"]),
+            )
+            .service(web::resource("/reset").route(web::get().to(reset)))
+            .service(
+                web::resource("/spent")
+                    .route(web::post().to(spent))
+                    .route(web::get().to(spent_total)),
+            )
+            .service(web::resource("/").route(web::get().to(index)))
+            .service(web::resource("{_:.*}").route(web::get().to(dist)))
     })
-    .bind("0.0.0.0:8001")
-    .expect("Address already in use")
-    .shutdown_timeout(5)
-    .start();
-    println!("app started on port 8001");
-    let _ = sys.run();
+    .bind("0.0.0.0:8001")?
+    .run()
 }
 
 //send a value which must be parsed and added to the total
 //we take in an f64, we store an i64, and we return a String
-fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
+fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
     let spent = req.into_inner();
     let add = (spent.amount * 100.0).round() as i64;
     match state.state.write() {
@@ -103,8 +99,8 @@ fn spent(state: State<AppState>, req: Json<SpentRequest>) -> HttpResponse {
     }
 }
 
-fn spent_total(req: &HttpRequest<AppState>) -> HttpResponse {
-    match req.state().state.read() {
+fn spent_total(req: web::Data<AppState>) -> HttpResponse {
+    match req.state.read() {
         Ok(i) => match serde_json::to_string(&SpentTotalResponse {
             total: format_money(i.total.to_string()),
             transactions: i.transactions.clone(),
@@ -116,8 +112,8 @@ fn spent_total(req: &HttpRequest<AppState>) -> HttpResponse {
     }
 }
 
-fn reset(req: &HttpRequest<AppState>) -> HttpResponse {
-    match req.state().state.write() {
+fn reset(req: web::Data<AppState>) -> HttpResponse {
+    match req.state.write() {
         Ok(mut i) => {
             i.total = 0;
             i.transactions = Vec::new();
@@ -149,18 +145,24 @@ fn format_money(input: String) -> String {
 
 fn handle_embedded_file(path: &str) -> HttpResponse {
     match Asset::get(path) {
-        Some(content) => HttpResponse::Ok()
-            .content_type(guess_mime_type(path).to_string())
-            .body(content),
+        Some(content) => {
+            let body: Vec<u8> = match content {
+                Cow::Borrowed(bytes) => bytes.into(),
+                Cow::Owned(bytes) => bytes.into(),
+            };
+            HttpResponse::Ok()
+                .content_type(guess_mime_type(path).to_string())
+                .body(body)
+        }
         None => HttpResponse::NotFound().body("404 Not Found"),
     }
 }
 
-fn index(_req: &HttpRequest<AppState>) -> HttpResponse {
+fn index(_req: web::Data<AppState>) -> HttpResponse {
     handle_embedded_file("index.html")
 }
 
-fn dist(req: &HttpRequest<AppState>) -> HttpResponse {
+fn dist(req: web::HttpRequest) -> HttpResponse {
     let path = &req.path()["/".len()..];
     handle_embedded_file(path)
 }

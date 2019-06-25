@@ -19,7 +19,7 @@
 <body>
 <canvas id="spendingChart" width="400" height="400"></canvas>
 <script>
-    fetch("/spent-total").then((res) => {
+    fetch("/spent").then((res) => {
        if(res.ok){
            return res.json();
        }

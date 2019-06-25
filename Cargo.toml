@@ -4,10 +4,10 @@ version = "0.1.0"
 authors = ["Bryant Deters <bryantdeters@gmail.com>"]
 
 [dependencies]
-actix-web = "0.7.14"
-actix = "0.7.6"
-serde = "1.0.80"
-serde_json = "1.0.33"
-serde_derive = "1.0.80"
+actix-web = "1.0"
+actix-cors = "0.1.0"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
 rust-embed = "4.4.0"
 mime_guess = "1.8.7"
