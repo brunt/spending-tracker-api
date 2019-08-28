@@ -13,12 +13,12 @@ pub enum Category {
 impl fmt::Display for Category {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let print = match *self {
-            Category::Dining => "Dining",
-            Category::Grocery => "Grocery",
-            Category::Travel => "Travel",
-            Category::Merchandise => "Merchandise",
-            Category::Entertainment => "Entertainment",
-            Category::Other => "Other",
+            Self::Dining => "Dining",
+            Self::Grocery => "Grocery",
+            Self::Travel => "Travel",
+            Self::Merchandise => "Merchandise",
+            Self::Entertainment => "Entertainment",
+            Self::Other => "Other",
         };
         write!(f, "{}", print)
     }

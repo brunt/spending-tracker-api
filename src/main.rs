@@ -91,11 +91,11 @@ fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpRespon
             match serde_json::to_string(&SpentResponse {
                 total: format_money(i.total.to_string()),
             }) {
-                Ok(s) => return HttpResponse::Ok().content_type("application/json").body(s),
+                Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
                 Err(_) => HttpResponse::InternalServerError().into(),
             }
         }
-        Err(_) => return HttpResponse::InternalServerError().into(),
+        Err(_) => HttpResponse::InternalServerError().into(),
     }
 }
 
@@ -108,7 +108,7 @@ fn spent_total(req: web::Data<AppState>) -> HttpResponse {
             Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
             Err(_) => HttpResponse::InternalServerError().into(),
         },
-        Err(_) => return HttpResponse::InternalServerError().into(),
+        Err(_) => HttpResponse::InternalServerError().into(),
     }
 }
 
@@ -148,7 +148,7 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
         Some(content) => {
             let body: Vec<u8> = match content {
                 Cow::Borrowed(bytes) => bytes.into(),
-                Cow::Owned(bytes) => bytes.into(),
+                Cow::Owned(bytes) => bytes,
             };
             HttpResponse::Ok()
                 .content_type(guess_mime_type(path).to_string())
