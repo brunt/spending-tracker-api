@@ -9,8 +9,8 @@ extern crate rust_embed;
 extern crate mime_guess;
 
 use actix_cors::Cors;
-use actix_web::{web, App, HttpResponse, HttpServer};
-use mime_guess::guess_mime_type;
+use actix_web::{web, App, HttpResponse, HttpServer, body::Body};
+use mime_guess::from_path;
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
 
@@ -146,12 +146,12 @@ fn format_money(input: String) -> String {
 fn handle_embedded_file(path: &str) -> HttpResponse {
     match Asset::get(path) {
         Some(content) => {
-            let body: Vec<u8> = match content {
+            let body: Body = match content {
                 Cow::Borrowed(bytes) => bytes.into(),
-                Cow::Owned(bytes) => bytes,
+                Cow::Owned(bytes) => bytes.into(),
             };
             HttpResponse::Ok()
-                .content_type(guess_mime_type(path).to_string())
+                .content_type(from_path(path).first_or_octet_stream().to_string())
                 .body(body)
         }
         None => HttpResponse::NotFound().body("404 Not Found"),
