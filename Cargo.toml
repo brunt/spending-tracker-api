@@ -2,12 +2,14 @@
 name = "spending-tracker-api"
 version = "0.1.0"
 authors = ["Bryant Deters <bryantdeters@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-actix-web = "1.0"
-actix-cors = "0.1.0"
+actix-web = "2.0"
+actix-rt = "1.0"
+actix-cors = "0.2.0"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
-rust-embed = "5.1.0"
+rust-embed = "5.2"
 mime_guess = "2.0.1"

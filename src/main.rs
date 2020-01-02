@@ -1,15 +1,10 @@
-extern crate actix_cors;
-extern crate actix_web;
-extern crate serde;
-extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate rust_embed;
-extern crate mime_guess;
 
 use actix_cors::Cors;
-use actix_web::{web, App, HttpResponse, HttpServer, body::Body};
+use actix_web::{body::Body, web, App, HttpResponse, HttpServer};
 use mime_guess::from_path;
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
@@ -47,7 +42,8 @@ struct SpentTotalResponse {
     transactions: Vec<(String, Category)>,
 }
 
-fn main() -> std::io::Result<()> {
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
     let state = Arc::new(RwLock::new(StateTotal {
         total: 0,
         transactions: Vec::new(),
@@ -61,7 +57,8 @@ fn main() -> std::io::Result<()> {
             .wrap(
                 Cors::new()
                     .allowed_origin("localhost")
-                    .allowed_methods(vec!["GET", "POST"]),
+                    .allowed_methods(vec!["GET", "POST"])
+                    .finish(),
             )
             .service(web::resource("/reset").route(web::get().to(reset)))
             .service(
@@ -74,6 +71,7 @@ fn main() -> std::io::Result<()> {
     })
     .bind("0.0.0.0:8001")?
     .run()
+    .await
 }
 
 //send a value which must be parsed and added to the total
@@ -99,7 +97,7 @@ fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpRespon
     }
 }
 
-fn spent_total(req: web::Data<AppState>) -> HttpResponse {
+async fn spent_total(req: web::Data<AppState>) -> HttpResponse {
     match req.state.read() {
         Ok(i) => match serde_json::to_string(&SpentTotalResponse {
             total: format_money(i.total.to_string()),
@@ -112,7 +110,7 @@ fn spent_total(req: web::Data<AppState>) -> HttpResponse {
     }
 }
 
-fn reset(req: web::Data<AppState>) -> HttpResponse {
+async fn reset(req: web::Data<AppState>) -> HttpResponse {
     match req.state.write() {
         Ok(mut i) => {
             i.total = 0;
@@ -158,11 +156,11 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
     }
 }
 
-fn index(_req: web::Data<AppState>) -> HttpResponse {
+async fn index(_req: web::Data<AppState>) -> HttpResponse {
     handle_embedded_file("index.html")
 }
 
-fn dist(req: web::HttpRequest) -> HttpResponse {
+async fn dist(req: web::HttpRequest) -> HttpResponse {
     let path = &req.path()["/".len()..];
     handle_embedded_file(path)
 }
