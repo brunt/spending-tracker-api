@@ -5,6 +5,7 @@ extern crate rust_embed;
 
 use actix_cors::Cors;
 use actix_web::{body::Body, web, App, HttpResponse, HttpServer};
+use actix_web_prom::PrometheusMetrics;
 use mime_guess::from_path;
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
@@ -49,6 +50,7 @@ async fn main() -> std::io::Result<()> {
         transactions: Vec::new(),
     }));
 
+    let prometheus = PrometheusMetrics::new("spending", Some("/metrics"), None);
     HttpServer::new(move || {
         App::new()
             .data(AppState {
@@ -60,6 +62,7 @@ async fn main() -> std::io::Result<()> {
                     .allowed_methods(vec!["GET", "POST"])
                     .finish(),
             )
+            .wrap(prometheus.clone())
             .service(web::resource("/reset").route(web::get().to(reset)))
             .service(
                 web::resource("/spent")
