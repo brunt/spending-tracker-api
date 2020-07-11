@@ -22,6 +22,7 @@ struct AppState {
 }
 
 struct StateTotal {
+    budget: i64,
     total: i64,
     transactions: Vec<(String, Category)>,
 }
@@ -39,6 +40,7 @@ struct SpentResponse {
 
 #[derive(Serialize)]
 struct SpentTotalResponse {
+    budget: String,
     total: String,
     transactions: Vec<(String, Category)>,
 }
@@ -46,6 +48,7 @@ struct SpentTotalResponse {
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     let state = Arc::new(RwLock::new(StateTotal {
+        budget: 50000,
         total: 0,
         transactions: Vec::new(),
     }));
@@ -69,6 +72,7 @@ async fn main() -> std::io::Result<()> {
                     .route(web::post().to(spent))
                     .route(web::get().to(spent_total)),
             )
+            .service(web::resource("/budget").route(web::post().to(set_budget)))
             .service(web::resource("/").route(web::get().to(index)))
             .service(web::resource("{_:.*}").route(web::get().to(dist)))
     })
@@ -90,7 +94,7 @@ fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpRespon
                 spent.category.unwrap_or(Category::Other),
             ));
             match serde_json::to_string(&SpentResponse {
-                total: format_money(i.total.to_string()),
+                total: format_money((i.budget - i.total).to_string()),
             }) {
                 Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
                 Err(_) => HttpResponse::InternalServerError().into(),
@@ -103,6 +107,7 @@ fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpRespon
 async fn spent_total(req: web::Data<AppState>) -> HttpResponse {
     match req.state.read() {
         Ok(i) => match serde_json::to_string(&SpentTotalResponse {
+            budget: format_money(i.budget.to_string()),
             total: format_money(i.total.to_string()),
             transactions: i.transactions.clone(),
         }) {
@@ -116,9 +121,28 @@ async fn spent_total(req: web::Data<AppState>) -> HttpResponse {
 async fn reset(req: web::Data<AppState>) -> HttpResponse {
     match req.state.write() {
         Ok(mut i) => {
+            i.budget = 50000;
             i.total = 0;
             i.transactions = Vec::new();
             match serde_json::to_string(&SpentTotalResponse {
+                budget: format_money(i.budget.to_string()),
+                total: format_money(i.total.to_string()),
+                transactions: i.transactions.clone(),
+            }) {
+                Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
+                Err(_) => HttpResponse::InternalServerError().into(),
+            }
+        }
+        Err(_) => HttpResponse::InternalServerError().into(),
+    }
+}
+
+async fn set_budget(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
+    match state.state.write() {
+        Ok(mut i) => {
+            i.budget = req.amount.round() as i64 * 100;
+            match serde_json::to_string(&SpentTotalResponse{
+                budget: format_money(i.budget.to_string()),
                 total: format_money(i.total.to_string()),
                 transactions: i.transactions.clone(),
             }) {

@@ -11,6 +11,7 @@ Routes:
   "category": "Dining"
 }
 ```
+* POST `/budget` to set a maximum budget. It does not impact how much you can add to the total.
 * GET `/reset` to reset the running total to zero.
 * GET `/` to view the pie chart which is generated with [Chart.js](https://www.chartjs.org/)
 
