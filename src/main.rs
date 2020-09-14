@@ -7,10 +7,10 @@ use actix_cors::Cors;
 use actix_web::{body::Body, web, App, HttpResponse, HttpServer};
 use actix_web_prom::PrometheusMetrics;
 use mime_guess::from_path;
+use rusty_money::Iso::*;
+use rusty_money::{Currency, Money};
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
-use rusty_money::{Money, Currency};
-use rusty_money::Iso::*;
 
 mod category;
 use category::Category;
@@ -47,7 +47,7 @@ struct SpentTotalResponse {
     transactions: Vec<(String, Category)>,
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let state = Arc::new(RwLock::new(StateTotal {
         budget: Money::from_minor(50000, Currency::get(USD)),
@@ -83,16 +83,15 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
+async fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
     let spent = req.into_inner();
     let add = Money::from_minor((spent.amount * 100.0).round() as i64, Currency::get(USD));
     match state.state.write() {
         Ok(mut state) => {
             state.total += add.clone();
-            state.transactions.push((
-                add.to_string(),
-                spent.category.unwrap_or(Category::Other),
-            ));
+            state
+                .transactions
+                .push((add.to_string(), spent.category.unwrap_or(Category::Other)));
             match serde_json::to_string(&SpentResponse {
                 total: (state.budget.clone() - state.total.clone()).to_string(),
             }) {
@@ -127,7 +126,7 @@ async fn reset(req: web::Data<AppState>) -> HttpResponse {
             match serde_json::to_string(&SpentTotalResponse {
                 budget: i.budget.clone().to_string(),
                 total: i.total.clone().to_string(),
-                transactions: Vec::new()
+                transactions: Vec::new(),
             }) {
                 Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
                 Err(_) => HttpResponse::InternalServerError().into(),
