@@ -29,23 +29,23 @@
         total.transactions.forEach((entry) => {
             switch (entry[1]) {
                 case 'Dining':
-                    displayData[0] += Number(entry[0]);
+                    displayData[0] += Number(entry[0].substring(1));
                     break;
                 case 'Grocery':
-                    displayData[1] += Number(entry[0]);
+                    displayData[1] += Number(entry[0].substring(1));
                     break;
                 case 'Merchandise':
-                    displayData[2] += Number(entry[0]);
+                    displayData[2] += Number(entry[0].substring(1));
                     break;
                 case 'Entertainment':
-                    displayData[3] += Number(entry[0]);
+                    displayData[3] += Number(entry[0].substring(1));
                     break;
                 case 'Travel':
-                    displayData[4] += Number(entry[0]);
+                    displayData[4] += Number(entry[0].substring(1));
                     break;
                 case 'Other':
                 default:
-                    displayData[5] += Number(entry[0]);
+                    displayData[5] += Number(entry[0].substring(1));
             }
         });
         let ctx = document.getElementById('spendingChart');

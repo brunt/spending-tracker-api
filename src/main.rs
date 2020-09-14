@@ -9,6 +9,8 @@ use actix_web_prom::PrometheusMetrics;
 use mime_guess::from_path;
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
+use rusty_money::{Money, Currency};
+use rusty_money::Iso::*;
 
 mod category;
 use category::Category;
@@ -22,8 +24,8 @@ struct AppState {
 }
 
 struct StateTotal {
-    budget: i64,
-    total: i64,
+    budget: Money,
+    total: Money,
     transactions: Vec<(String, Category)>,
 }
 
@@ -48,8 +50,8 @@ struct SpentTotalResponse {
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     let state = Arc::new(RwLock::new(StateTotal {
-        budget: 50000,
-        total: 0,
+        budget: Money::from_minor(50000, Currency::get(USD)),
+        total: Money::from_minor(0, Currency::get(USD)),
         transactions: Vec::new(),
     }));
 
@@ -81,20 +83,18 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-//send a value which must be parsed and added to the total
-//we take in an f64, we store an i64, and we return a String
 fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
     let spent = req.into_inner();
-    let add = (spent.amount * 100.0).round() as i64;
+    let add = Money::from_minor((spent.amount * 100.0).round() as i64, Currency::get(USD));
     match state.state.write() {
-        Ok(mut i) => {
-            i.total += add;
-            i.transactions.push((
-                spent.amount.to_string(),
+        Ok(mut state) => {
+            state.total += add.clone();
+            state.transactions.push((
+                add.to_string(),
                 spent.category.unwrap_or(Category::Other),
             ));
             match serde_json::to_string(&SpentResponse {
-                total: format_money((i.budget - i.total).to_string()),
+                total: (state.budget.clone() - state.total.clone()).to_string(),
             }) {
                 Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
                 Err(_) => HttpResponse::InternalServerError().into(),
@@ -107,8 +107,8 @@ fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpRespon
 async fn spent_total(req: web::Data<AppState>) -> HttpResponse {
     match req.state.read() {
         Ok(i) => match serde_json::to_string(&SpentTotalResponse {
-            budget: format_money(i.budget.to_string()),
-            total: format_money(i.total.to_string()),
+            budget: i.budget.clone().to_string(),
+            total: i.total.clone().to_string(),
             transactions: i.transactions.clone(),
         }) {
             Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
@@ -121,13 +121,13 @@ async fn spent_total(req: web::Data<AppState>) -> HttpResponse {
 async fn reset(req: web::Data<AppState>) -> HttpResponse {
     match req.state.write() {
         Ok(mut i) => {
-            i.budget = 50000;
-            i.total = 0;
+            i.budget = Money::from_minor(50000, Currency::get(USD));
+            i.total = Money::from_minor(0, Currency::get(USD));
             i.transactions = Vec::new();
             match serde_json::to_string(&SpentTotalResponse {
-                budget: format_money(i.budget.to_string()),
-                total: format_money(i.total.to_string()),
-                transactions: i.transactions.clone(),
+                budget: i.budget.clone().to_string(),
+                total: i.total.clone().to_string(),
+                transactions: Vec::new()
             }) {
                 Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
                 Err(_) => HttpResponse::InternalServerError().into(),
@@ -140,10 +140,10 @@ async fn reset(req: web::Data<AppState>) -> HttpResponse {
 async fn set_budget(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
     match state.state.write() {
         Ok(mut i) => {
-            i.budget = req.amount.round() as i64 * 100;
-            match serde_json::to_string(&SpentTotalResponse{
-                budget: format_money(i.budget.to_string()),
-                total: format_money(i.total.to_string()),
+            i.budget = Money::from_minor((req.amount * 100.0).round() as i64, Currency::get(USD));
+            match serde_json::to_string(&SpentTotalResponse {
+                budget: i.budget.clone().to_string(),
+                total: i.total.clone().to_string(),
                 transactions: i.transactions.clone(),
             }) {
                 Ok(s) => HttpResponse::Ok().content_type("application/json").body(s),
@@ -151,20 +151,6 @@ async fn set_budget(state: web::Data<AppState>, req: web::Json<SpentRequest>) ->
             }
         }
         Err(_) => HttpResponse::InternalServerError().into(),
-    }
-}
-
-//the chatbot client is doing input validation so I'm not bothered by not having any here
-fn format_money(input: String) -> String {
-    match input.len() {
-        x if x < 1 => input,
-        x if x < 2 => format!("$0.0{}", input),
-        x if x < 3 => format!("$0.{}", input),
-        _ => {
-            let mut output = format!("${}", input);
-            output.insert(input.len() - 1, '.');
-            output
-        }
     }
 }
 
@@ -190,17 +176,4 @@ async fn index(_req: web::Data<AppState>) -> HttpResponse {
 async fn dist(req: web::HttpRequest) -> HttpResponse {
     let path = &req.path()["/".len()..];
     handle_embedded_file(path)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_format_money() {
-        assert_eq!(format_money("".to_string()), "".to_string());
-        assert_eq!(format_money("1".to_string()), "$0.01".to_string());
-        assert_eq!(format_money("11".to_string()), "$0.11".to_string());
-        assert_eq!(format_money("111".to_string()), "$1.11".to_string());
-        assert_eq!(format_money("1111".to_string()), "$11.11".to_string());
-    }
 }
