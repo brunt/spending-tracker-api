@@ -4,7 +4,7 @@ extern crate serde_derive;
 extern crate rust_embed;
 
 use actix_cors::Cors;
-use actix_web::{body::Body, web, App, HttpResponse, HttpServer};
+use actix_web::{body::Body, get, post, web, App, HttpResponse, HttpServer};
 use actix_web_prom::PrometheusMetrics;
 use mime_guess::from_path;
 use rusty_money::Iso::*;
@@ -68,15 +68,15 @@ async fn main() -> std::io::Result<()> {
                     .finish(),
             )
             .wrap(prometheus.clone())
-            .service(web::resource("/reset").route(web::get().to(reset)))
             .service(
                 web::resource("/spent")
                     .route(web::post().to(spent))
                     .route(web::get().to(spent_total)),
             )
-            .service(web::resource("/budget").route(web::post().to(set_budget)))
-            .service(web::resource("/").route(web::get().to(index)))
-            .service(web::resource("{_:.*}").route(web::get().to(dist)))
+            .service(reset)
+            .service(set_budget)
+            .service(index)
+            .service(dist)
     })
     .bind("0.0.0.0:8001")?
     .run()
@@ -117,6 +117,7 @@ async fn spent_total(req: web::Data<AppState>) -> HttpResponse {
     }
 }
 
+#[get("/reset")]
 async fn reset(req: web::Data<AppState>) -> HttpResponse {
     match req.state.write() {
         Ok(mut i) => {
@@ -136,6 +137,7 @@ async fn reset(req: web::Data<AppState>) -> HttpResponse {
     }
 }
 
+#[post("/budget")]
 async fn set_budget(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> HttpResponse {
     match state.state.write() {
         Ok(mut i) => {
@@ -168,11 +170,12 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
     }
 }
 
+#[get("/")]
 async fn index(_req: web::Data<AppState>) -> HttpResponse {
     handle_embedded_file("index.html")
 }
 
-async fn dist(req: web::HttpRequest) -> HttpResponse {
-    let path = &req.path()["/".len()..];
-    handle_embedded_file(path)
+#[get("/dist/{_:.*}")]
+async fn dist(path: web::Path<String>) -> HttpResponse {
+    handle_embedded_file(&path.0)
 }
