@@ -6,6 +6,7 @@ extern crate rust_embed;
 use actix_cors::Cors;
 use actix_web::{body::Body, get, post, web, App, HttpResponse, HttpServer};
 use actix_web_prom::PrometheusMetrics;
+use chrono::Local;
 use mime_guess::from_path;
 use rusty_money::Iso::*;
 use rusty_money::{Currency, Money};
@@ -26,7 +27,7 @@ struct AppState {
 struct StateTotal {
     budget: Money,
     total: Money,
-    transactions: Vec<(String, Category)>,
+    transactions: Vec<Transaction>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,7 +45,14 @@ struct SpentResponse {
 struct SpentTotalResponse {
     budget: String,
     total: String,
-    transactions: Vec<(String, Category)>,
+    transactions: Vec<Transaction>,
+}
+
+#[derive(Clone, Serialize)]
+struct Transaction {
+    amount: String,
+    category: String,
+    time: String,
 }
 
 #[actix_web::main]
@@ -89,9 +97,11 @@ async fn spent(state: web::Data<AppState>, req: web::Json<SpentRequest>) -> Http
     match state.state.write() {
         Ok(mut state) => {
             state.total += add.clone();
-            state
-                .transactions
-                .push((add.to_string(), spent.category.unwrap_or(Category::Other)));
+            state.transactions.push(Transaction {
+                amount: add.to_string(),
+                category: spent.category.unwrap_or(Category::Other).to_string(),
+                time: Local::now().to_string(),
+            });
             match serde_json::to_string(&SpentResponse {
                 total: (state.budget.clone() - state.total.clone()).to_string(),
             }) {
